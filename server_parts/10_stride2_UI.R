@@ -867,9 +867,8 @@ output$STRIDE2 <- renderUI({
             pickerInput(inputId = "qss_region", label = "Filter by Region:", choices = sort(unique(uni$Region)), selected = NULL, multiple = FALSE, options = pickerOptions(actionsBox = TRUE, liveSearch = TRUE, title = "All Regions")),
             pickerInput(inputId = "qss_division", label = "Filter by Division:", choices = sort(unique(uni$Division)), selected = NULL, multiple = FALSE, options = pickerOptions(actionsBox = TRUE, liveSearch = TRUE, title = "All Divisions")),
             pickerInput(inputId = "qss_legdist", label = "Filter by Legislative District:", choices = sort(unique(uni$Legislative.District)), selected = NULL, multiple = FALSE, options = pickerOptions(actionsBox = TRUE, liveSearch = TRUE, title = "All Districts")),
-            pickerInput(inputId = "qss_municipality", label = "Filter by Municipality:", choices = sort(unique(uni$Municipality)), selected = NULL, multiple = FALSE, options = pickerOptions(actionsBox = TRUE, liveSearch = TRUE, title = "All Municipalities"))
-          ),
-          actionButton("clear_qss_filters", "Clear Filters", icon = icon("eraser"), class = "btn-outline-danger", style = "width: 100%; margin-top: 5px; margin-bottom: 5px;"),
+            pickerInput(inputId = "qss_municipality", label = "Filter by Municipality:", choices = sort(unique(uni$Municipality)), selected = NULL, multiple = FALSE, options = pickerOptions(actionsBox = TRUE, liveSearch = TRUE, title = "All Municipalities")),
+          actionButton("clear_qss_filters", "Clear Filters", icon = icon("eraser"), class = "btn-outline-danger", style = "width: 100%; margin-top: 5px; margin-bottom: 5px;")),
           input_task_button("TextRun", icon_busy = fontawesome::fa_i("refresh", class = "fa-spin", "aria-hidden" = "true"), strong("Show Selection"), class = "btn-warning")
         ), 
         tags$script(HTML("
@@ -939,56 +938,280 @@ output$STRIDE2 <- renderUI({
       ) # End layout_sidebar
     ), # End Quick Search nav_panel # End Quick Search nav_panel
     
-    # --- RESOURCE MAPPING ---
+    # --- RESOURCE MAPPING (REFACTORED) ---
     nav_panel(
       title = tags$b("Resource Mapping"),
       value = "resource_mapping_tab",
       icon = bs_icon("map"),
+      
       layout_sidebar(
         sidebar = sidebar(
           class = "sticky-sidebar",
           width = 375,
           title = "Resource Mapping Filters",
+          
+          # --- 1. SHARED LOCATION FILTERS ---
           card(
-            height = 400,
+            height = "auto",
             card_header(tags$b("Data Filters")),
-            pickerInput(inputId = "resource_map_region", label = "Region:", choices = c("Region I" = "Region I","Region II" = "Region II","Region III" = "Region III", "Region IV-A" = "Region IV-A","MIMAROPA" = "MIMAROPA","Region V" = "Region V", "Region VI" = "Region VI","NIR" = "NIR","Region VII" = "Region VII", "Region VIII" = "Region VIII","Region IX" = "Region IX","Region X" = "Region X", "Region XI" = "Region XI","Region XII" = "Region XII","CARAGA" = "CARAGA", "CAR" = "CAR","NCR" = "NCR"), selected = "Region I", multiple = FALSE, options = list(`actions-box` = FALSE, `none-selected-text` = "Select a region", dropupAuto = FALSE, dropup = FALSE)),
-            pickerInput(inputId = "Resource_SDO", label = "Select a Division:", choices = NULL, selected = NULL, multiple = FALSE, options = list(`actions-box` = FALSE, `none-selected-text` = "Select a division", dropupAuto = FALSE, dropup = FALSE)),
-            pickerInput(inputId = "Resource_LegDist", label = "Select Legislative District(s):", choices = NULL, selected = NULL, multiple = TRUE, options = list(`actions-box` = TRUE, `none-selected-text` = "Select one or more districts", dropupAuto = FALSE, dropup = FALSE)),
+            pickerInput(
+              inputId = "resource_map_region", 
+              label = "Region:", 
+              choices = c("Region I", "Region II", "Region III", "Region IV-A", "MIMAROPA", 
+                          "Region V", "Region VI", "NIR", "Region VII", "Region VIII", 
+                          "Region IX", "Region X", "Region XI", "Region XII", "CARAGA", 
+                          "CAR", "NCR"), 
+              selected = "Region I", 
+              options = list(`actions-box` = FALSE, `none-selected-text` = "Select a region")
+            ),
+            pickerInput(
+              inputId = "Resource_SDO", 
+              label = "Select a Division:", 
+              choices = NULL, 
+              selected = NULL, 
+              options = list(`actions-box` = FALSE, `none-selected-text` = "Select a division")
+            ),
+            pickerInput(
+              inputId = "Resource_LegDist", 
+              label = "Select Legislative District(s):", 
+              choices = NULL, 
+              selected = NULL, 
+              multiple = TRUE, 
+              options = list(`actions-box` = TRUE, `none-selected-text` = "Select districts")
+            ),
+            
+            # --- CONDITIONAL INPUTS (DEPENDING ON ACTIVE TAB) ---
+            
+            # Show Level only for Teaching Deployment Tab
             conditionalPanel(
-              condition = "input.resource_type_selection == 'Teaching Deployment'",
+              condition = "input.resource_main_tab == 'Teaching Deployment'",
               pickerInput(
                 inputId = "resource_map_level",
                 label = "Select Level:",
-                choices = unique(df$Level), # Update these choices as needed
-                selected = NULL,
-                multiple = FALSE,
-                options = list(`actions-box` = FALSE, `none-selected-text` = "Select level", dropupAuto = FALSE, dropup = FALSE)
+                choices = c("Elem", "JHS", "SHS"), # Ensure these match your df$Level values
+                selected = "Elem",
+                options = list(`actions-box` = FALSE)
               )
             ),
-            input_task_button("Mapping_Run", strong("Show Selection"), class = "btn-warning")
-          ),
-          hr(),
-          card(
-            card_header(tags$b("Resource Types")),
             
-            # --- ADDED THIS WRAPPER ---
-            div(
-              style = "text-align: left; padding-left: 15px;", 
-              
-              radioButtons(
-                inputId = "resource_type_selection",
-                label = NULL,
-                choices = c("Teaching Deployment", "Non-teaching Deployment", "Classroom Inventory", "Learner Congestion", "Industries", "Facilities", "Last Mile School"),
-                selected = "Teaching Deployment"
+            # Show Facility Type only for Facilities Tab
+            # (Restored this input as it is required by data_EFD in server)
+            conditionalPanel(
+              condition = "input.resource_main_tab == 'Facilities'",
+              pickerInput(
+                inputId = "EFD_Type",
+                label = "Select Facility Category:",
+                choices = c("DCP", "Last Mile Schools", "Gabaldon", "School Health Facilities", 
+                            "Electrification", "Furniture", "Play Area"), # Add specific choices as needed
+                multiple = TRUE,
+                selected = c("DCP", "Last Mile Schools"),
+                options = list(`actions-box` = TRUE, `live-search` = TRUE)
               )
-            ) # --- END OF WRAPPER ---
+            ),
+            
+            hr(),
+            # Action Button
+            input_task_button("Mapping_Run", strong("Generate Map & Data"), class = "btn-warning w-100")
           )
-        ), # End sidebar
-        mainPanel(
-          width = 12,
-          uiOutput("dynamic_resource_panel")
-        )
+        ), 
+        
+        # --- 2. MAIN CONTENT TABS ---
+        bslib::navset_card_tab(
+          id = "resource_main_tab", # ID used for sidebar conditional logic
+          
+          # ----- TAB 1: TEACHING DEPLOYMENT -----
+          nav_panel(
+            title = "Teaching Deployment",
+            value = "Teaching Deployment",
+            
+            # Value Boxes (Division Level)
+            layout_columns(
+              col_widths = c(3, 3, 3, 3),
+              valueBoxOutput("a"), # FillUp Rate
+              valueBoxOutput("b"), # Unfilled
+              valueBoxOutput("c"), # Excess
+              valueBoxOutput("e")  # Net Shortage
+            ),
+            
+            # Map & Table
+            layout_columns(
+              col_widths = c(12, 12),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Teacher Shortage Map")),
+                leafletOutput("TeacherShortage_Mapping", height = "500px")
+              ),
+              card(
+                full_screen = TRUE,
+                card_header(strong("School List (Teacher Inventory)")),
+                DT::dataTableOutput("TeacherShortage_Table")
+              )
+            )
+          ),
+          
+          # ----- TAB 2: NON-TEACHING (AO2) -----
+          nav_panel(
+            title = "Non-teaching",
+            value = "Non-teaching Deployment",
+            
+            # Value Boxes (Region & Div Summary)
+            layout_columns(
+              col_widths = c(4, 4, 4),
+              valueBoxOutput("SingleR"), # Unclustered Region
+              valueBoxOutput("ClusterR"), # Clustered Region
+              valueBoxOutput("OutlierR")  # Outlier Region
+            ),
+            layout_columns(
+              col_widths = c(4, 4, 4),
+              valueBoxOutput("Single"),   # Unclustered Div
+              valueBoxOutput("Cluster"),  # Clustered Div
+              valueBoxOutput("Outlier")   # Outlier Div
+            ),
+            
+            # Map & Table
+            layout_columns(
+              col_widths = c(12, 12),
+              card(
+                full_screen = TRUE,
+                card_header(strong("AO II / PDO I Deployment Map")),
+                leafletOutput("AO2Mapping", height = "500px")
+              ),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Clustering Status Table")),
+                DT::dataTableOutput("AO2Table")
+              )
+            )
+          ),
+          
+          # ----- TAB 3: CLASSROOM INVENTORY -----
+          nav_panel(
+            title = "Classrooms",
+            value = "Classroom Inventory",
+            
+            # Value Boxes
+            layout_columns(
+              col_widths = c(6, 6),
+              valueBoxOutput("ROCRShort"), # Region Shortage
+              valueBoxOutput("SDOCRShort") # SDO Shortage
+            ),
+            
+            # Map & Table
+            layout_columns(
+              col_widths = c(12, 12),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Classroom Shortage Map")),
+                leafletOutput("CLMapping", height = "500px")
+              ),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Classroom Data Table")),
+                DT::dataTableOutput("CLTable")
+              )
+            )
+          ),
+          
+          # ----- TAB 4: LEARNER CONGESTION -----
+          nav_panel(
+            title = "Congestion",
+            value = "Learner Congestion",
+            
+            # Map & Table (No ValueBoxes in original logic for this view)
+            layout_columns(
+              col_widths = c(12, 12),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Learner Congestion Map")),
+                leafletOutput("CongestMapping", height = "500px")
+              ),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Congestion Index Table")),
+                DT::dataTableOutput("CongestTable")
+              )
+            )
+          ),
+          
+          # ----- TAB 5: INDUSTRIES (SHS) -----
+          nav_panel(
+            title = "Industries (SHS)",
+            value = "Industries",
+            
+            # Value Boxes & Text
+            layout_columns(
+              col_widths = c(4, 4, 4),
+              valueBoxOutput("SHSCount"),
+              valueBoxOutput("SHSCountUniv"),
+              valueBoxOutput("IndCount")
+            ),
+            card(card_body(uiOutput("assessmentSHS"))),
+            
+            # Map & Table
+            layout_columns(
+              col_widths = c(12, 12),
+              card(
+                full_screen = TRUE,
+                card_header(strong("SHS & Industry Map")),
+                leafletOutput("SHSMapping", height = "500px")
+              ),
+              card(
+                full_screen = TRUE,
+                card_header(strong("School List")),
+                DT::dataTableOutput("SHSListTable")
+              )
+            )
+          ),
+          
+          # ----- TAB 6: FACILITIES -----
+          nav_panel(
+            title = "Facilities",
+            value = "Facilities",
+            
+            # Map & Table
+            layout_columns(
+              col_widths = c(12, 12),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Education Facilities Map")),
+                leafletOutput("FacMapping", height = "500px")
+              ),
+              card(
+                full_screen = TRUE,
+                card_header(strong("Allocation Data")),
+                DT::dataTableOutput("FacTable")
+              )
+            )
+          ),
+          
+          # ----- TAB 7: LAST MILE SCHOOLS -----
+          nav_panel(
+            title = "Last Mile Schools",
+            value = "Last Mile School",
+            
+            # Value Boxes
+            layout_columns(
+              col_widths = c(6, 6),
+              valueBoxOutput("LMS_Total_Region"),
+              valueBoxOutput("LMS_Total_Division")
+            ),
+            
+            # Map & Table
+            layout_columns(
+              col_widths = c(12, 12),
+              card(
+                full_screen = TRUE,
+                card_header(strong("LMS Location Map")),
+                leafletOutput("LMSMapping", height = "500px")
+              ),
+              card(
+                full_screen = TRUE,
+                card_header(strong("LMS List")),
+                DT::dataTableOutput("LMSTable")
+              )
+            )
+          )
+        ) # End navset_card_tab
       ) # End layout_sidebar
     ), # End Mapping nav_panel
     

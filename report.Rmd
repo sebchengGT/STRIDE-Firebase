@@ -23,7 +23,6 @@ library(htmltools) # Required for structuring the report
 
 
 ```{r generate_plots, results='asis'}
-# --- PART 2: PLOTTING (This runs visibly) ---
 # --- HELPER: UNIVERSAL DATA FINDER ---
 get_metric_data <- function(data, target_metric, metric_list) {
   clean_str <- function(x) { tolower(gsub("[. ]", "", x)) }
@@ -53,12 +52,18 @@ for (m in params$metrics) {
   
   dat <- get_metric_data(params$data, m, params$metric_names)
   
+  # CLEANING: Remove NA, 0, and Total rows before calculating summary
   if (nrow(dat) > 0) {
-    top_row <- dat %>% 
-      filter(!tolower(Category) %in% c("total", "grand total", "sum")) %>%
-      arrange(desc(Value)) %>% slice(1)
-      
-    if(nrow(top_row) == 0) top_row <- dat %>% arrange(desc(Value)) %>% slice(1)
+    dat <- dat %>% 
+      filter(
+        !is.na(Value), 
+        Value > 0, 
+        !tolower(Category) %in% c("total", "grand total", "sum", "na", "<not available>")
+      )
+  }
+  
+  if (nrow(dat) > 0) {
+    top_row <- dat %>% arrange(desc(Value)) %>% slice(1)
     
     val_formatted <- format(top_row$Value, big.mark=",")
     
@@ -93,6 +98,17 @@ for (i in seq_along(params$metrics)) {
 
   plot_data <- get_metric_data(params$data, current_metric, params$metric_names)
 
+  # CLEANING: Remove NA, 0, and Total rows before plotting
+  if (nrow(plot_data) > 0) {
+    plot_data <- plot_data %>% 
+      filter(
+        !is.na(Value), 
+        Value > 0,   # Ensures 0 is not picked up as "Lowest"
+        !is.na(Category),
+        !tolower(Category) %in% c("total", "grand total", "sum", "na", "<not available>")
+      )
+  }
+
   if (nrow(plot_data) == 0) {
     # Empty State
     graph_list[[i]] <- tagList(
@@ -118,18 +134,34 @@ for (i in seq_along(params$metrics)) {
     )
 
     # --- B. Generate Plot ---
+    
+    # 1. Calculate max value to expand the axis range manually
+    max_val <- max(plot_data$Value, na.rm = TRUE)
+    axis_limit <- max_val * 1.2
+    if(axis_limit == 0) axis_limit <- 10
+
     p <- plot_ly(
       data = plot_data,
       y = ~Category,
       x = ~Value,
       type = 'bar',
       orientation = 'h',
+      text = ~format(Value, big.mark = ","), 
+      textposition = 'outside', 
+      cliponaxis = FALSE, 
       marker = list(color = '#003366')
     ) %>%
       layout(
         title = "",
-        xaxis = list(title = "Value"),
-        yaxis = list(title = "")
+        xaxis = list(
+          title = "Value", 
+          range = c(0, axis_limit)
+        ),
+        yaxis = list(
+          title = "",
+          categoryorder = "total ascending"
+        ),
+        margin = list(r = 50) 
       )
     
     # --- C. Combine into Section ---

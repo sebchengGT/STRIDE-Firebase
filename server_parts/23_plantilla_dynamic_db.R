@@ -3,7 +3,6 @@
 # --- Shared global drilldown state ---
 plantilla_drill_state <- reactiveVal(list(region = NULL))
 plantilla_trigger <- reactiveVal(0)
-# Add this near line 7 with your other reactiveVals
 last_preset_selection <- reactiveVal(character(0))
 
 # --- NEW: Create a master list of all locations ---
@@ -16,7 +15,6 @@ all_locations <- distinct(dfGMIS, GMIS.Region, GMIS.Division)
 req(all_available_positions) # Ensures this variable exists
 default_plantilla_selection <- character(0)
 
-# --- Observer for Plantilla Position Presets (SINGLE SELECTION ENFORCED) ---
 # --- Observer for Plantilla Position Presets (SINGLE SELECTION ENFORCED) ---
 observeEvent(input$plantilla_presets, {
   
@@ -35,31 +33,26 @@ observeEvent(input$plantilla_presets, {
   newly_clicked <- setdiff(current_selection, prev_selection)
   
   if (length(newly_clicked) > 0) {
-    # CASE A: A new box was clicked. 
-    # We enforce single selection by taking ONLY the new item.
+    # CASE A: A new box was clicked. Enforce single selection.
     final_selection <- newly_clicked[1] 
   } else {
-    # CASE B: No new box was added (meaning the user unchecked the active box).
-    # If standard behavior is allowing uncheck -> empty, leave it empty.
-    # If you want to prevent unchecking, set it back to prev_selection.
+    # CASE B: No new box was added (user unchecked).
     if (length(current_selection) > 0) {
-      # This handles edge cases where setdiff might miss depending on race conditions
       final_selection <- tail(current_selection, 1)
     } else {
       final_selection <- character(0)
     }
   }
   
-  # 4. Update the UI if the selection needs to be forced (Standardizing to 1 item)
-  # We only update if the UI state (current) is different from our calculated final
+  # 4. Update the UI if needed
   if (!identical(current_selection, final_selection)) {
     updateCheckboxGroupInput(session, "plantilla_presets", selected = final_selection)
   }
   
-  # 5. Save this state for the next click
+  # 5. Save state
   last_preset_selection(final_selection)
   
-  # --- LOGIC TO SELECT POSITIONS (Copied from your original code) ---
+  # --- LOGIC TO SELECT POSITIONS ---
   positions_to_select <- default_plantilla_selection
   
   if (length(final_selection) > 0) {
@@ -78,7 +71,6 @@ observeEvent(input$plantilla_presets, {
     }
   }
   
-  # Update the Picker Input
   unique_final <- unique(positions_to_select)
   
   updatePickerInput(
@@ -94,7 +86,6 @@ observeEvent(input$plantilla_presets, {
 observe({
   req(input$selected_positions)
   
-  # 1. Render the Layout (Cards)
   # 1. Render the Layout (Cards)
   output$dynamic_positions_ui <- renderUI({
     req(input$selected_positions)
@@ -140,7 +131,7 @@ observe({
             )
           ),
           
-          # --- CHANGE: Increased height from 450px to 600px ---
+          # Plotly Output
           plotlyOutput(plot_id, height = "600px")
         )
       )
@@ -155,53 +146,44 @@ observe({
   # 2. Generate Logic for Each Selected Position
   lapply(input$selected_positions, function(pos) {
     
-    # Create unique IDs
     clean_pos <- gsub(" ", "_", pos)
     plot_id <- paste0("plot_", clean_pos)
     vbox_id <- paste0("vbox_", clean_pos)
     source_id <- paste0("drilldown_source_", clean_pos)
     
     # Reactive Data for this specific position
-    # Reactive Data for this specific position
-    # Reactive Data for this specific position
     df_sub <- reactive({
-      # Scaffold ensures we have rows even if counts are 0
       pos_scaffold <- all_locations %>% mutate(Position = pos)
       
       actual_data <- dfGMIS %>% 
         filter(Position == pos) %>%
         select(Position, GMIS.Region, GMIS.Division, Total.Filled, Total.Unfilled)
       
-      # Join data
       clean_data <- pos_scaffold %>%
         left_join(actual_data, by = c("Position", "GMIS.Region", "GMIS.Division")) %>%
         mutate(
           Total.Filled = replace_na(Total.Filled, 0),
           Total.Unfilled = replace_na(Total.Unfilled, 0)
         ) %>%
-        # --- FIX: Remove "<not available>" entries ---
         filter(
           GMIS.Region != "<not available>", 
           GMIS.Division != "<not available>"
         )
       
-      # --- FIX: Sanitize Text to prevent "Invalid Input String" Errors ---
+      # Sanitize Text
       clean_data$GMIS.Region <- iconv(clean_data$GMIS.Region, to = "UTF-8", sub = " ")
       clean_data$GMIS.Division <- iconv(clean_data$GMIS.Division, to = "UTF-8", sub = " ")
       
       return(clean_data)
     })
     
-    # --- Value Boxes (Main, Filled, Unfilled) ---
-    
-    # A. Helper function to calculate totals based on drilldown state
+    # --- Value Boxes ---
     get_filtered_data <- function() {
-      trigger <- plantilla_trigger() # dependency
+      trigger <- plantilla_trigger()
       state <- plantilla_drill_state()
       if (is.null(state)) state <- list(region = NULL)
       
       d <- df_sub()
-      
       title_txt <- "Total Positions"
       if (!is.null(state$region)) {
         d <- d %>% filter(GMIS.Region == state$region)
@@ -210,7 +192,6 @@ observe({
       return(list(data = d, title = title_txt))
     }
     
-    # B. Render Main Total Box
     output[[vbox_id]] <- renderUI({
       res <- get_filtered_data()
       total <- sum(res$data$Total.Filled + res$data$Total.Unfilled, na.rm = TRUE)
@@ -225,14 +206,12 @@ observe({
       )
     })
     
-    # C. Render Filled Count
     output[[paste0("filled_count_ui_", clean_pos)]] <- renderUI({
       res <- get_filtered_data()
       total <- sum(res$data$Total.Filled, na.rm = TRUE)
       tags$h4(format(total, big.mark = ","), style = "font-size: 21.6px; font-weight: bold; margin: 0; padding-top: 5px; color:white;")
     })
     
-    # D. Render Unfilled Count
     output[[paste0("unfilled_count_ui_", clean_pos)]] <- renderUI({
       res <- get_filtered_data()
       total <- sum(res$data$Total.Unfilled, na.rm = TRUE)
@@ -240,51 +219,59 @@ observe({
     })
     
     # --- PLOTLY CHART ---
-# --- PLOTLY CHART (Fixed Text Position) ---
     output[[plot_id]] <- renderPlotly({
       trigger <- plantilla_trigger()
       state <- plantilla_drill_state()
       if (is.null(state)) state <- list(region = NULL)
       
       df <- df_sub()
+      df <- df %>% filter(GMIS.Region != "<not available>", GMIS.Division != "<not available>")
       
       # Determine Drilldown Level
       if (is.null(state$region)) {
-        # Level 1: Region
-        group_var <- "GMIS.Region"
-        plot_data_raw <- df
+        plot_data <- df %>%
+          group_by(GMIS.Region) %>%
+          summarise(
+            Filled = sum(Total.Filled, na.rm = TRUE),
+            Unfilled = sum(Total.Unfilled, na.rm = TRUE),
+            .groups = "drop"
+          ) %>%
+          tidyr::pivot_longer(cols = c(Filled, Unfilled), names_to = "Type", values_to = "Count")
         y_formula <- ~GMIS.Region
       } else {
-        # Level 2: Division
-        group_var <- "GMIS.Division"
-        plot_data_raw <- df %>% filter(GMIS.Region == state$region)
+        plot_data <- df %>%
+          filter(GMIS.Region == state$region) %>%
+          group_by(GMIS.Division) %>%
+          summarise(
+            Filled = sum(Total.Filled, na.rm = TRUE),
+            Unfilled = sum(Total.Unfilled, na.rm = TRUE),
+            .groups = "drop"
+          ) %>%
+          tidyr::pivot_longer(cols = c(Filled, Unfilled), names_to = "Type", values_to = "Count")
         y_formula <- ~GMIS.Division
       }
       
-      # Summarize for Plotting (Bars)
-      plot_data <- plot_data_raw %>%
-        group_by(.data[[group_var]]) %>%
-        summarise(
-          Filled = sum(Total.Filled, na.rm = TRUE),
-          Unfilled = sum(Total.Unfilled, na.rm = TRUE),
-          .groups = "drop"
-        ) %>%
-        tidyr::pivot_longer(cols = c(Filled, Unfilled), names_to = "Type", values_to = "Count")
+      if (nrow(plot_data) == 0) return(plot_ly() %>% layout(title = "No Data"))
       
-      if (nrow(plot_data) == 0) return(plot_ly())
+      # Prepare Data for Totals (Text at end)
+      y_var_name <- all.vars(y_formula)  
       
-      # Summarize for Totals (Text Labels)
-      total_counts <- plot_data_raw %>%
-        group_by(.data[[group_var]]) %>%
+      data_for_totals <- if (is.null(state$region)) {
+        df 
+      } else {
+        df %>% filter(GMIS.Region == state$region) 
+      }
+      
+      total_counts <- data_for_totals %>%
+        group_by(!!sym(y_var_name)) %>%
         summarise(
           TotalFilled = sum(Total.Filled, na.rm = TRUE),
           TotalUnfilled = sum(Total.Unfilled, na.rm = TRUE),
           TotalCount = TotalFilled + TotalUnfilled,
+          FillingRate = ifelse(TotalCount == 0, 0, TotalFilled / TotalCount), 
           .groups = "drop"
         )
       
-      # Fix Axis Range
-      # We multiply by 1.4 to give extra whitespace on the right for the text
       max_val <- max(total_counts$TotalCount, na.rm = TRUE)
       final_max <- if (max_val <= 0) 10 else (max_val * 1.4) 
       
@@ -298,11 +285,10 @@ observe({
         colors = color_map,
         type = 'bar',
         orientation = 'h',
-        source = source_id, 
+        source = source_id,
         text = ~Count,
         texttemplate = '%{x:,.0f}',
-        textposition = 'inside', 
-        insidetextanchor = 'middle'
+        textposition = 'inside' 
       ) %>%
         layout(
           barmode = 'stack',
@@ -311,54 +297,54 @@ observe({
             range = c(0, final_max),
             tickformat = ',.0f'
           ),
-          yaxis = list(title = "", categoryorder = "total descending", autorange = "reversed"),
-          legend = list(orientation = 'h', x = 0.5, y = 1.05, xanchor = 'center')
+          yaxis = list(
+            title = "", 
+            categoryorder = "total descending",
+            autorange = "reversed"
+          ),
+          # --- FIXED: LEGEND MOVED TO BOTTOM ---
+          legend = list(
+            orientation = 'h',      # Horizontal
+            xanchor = 'center',     # Center horizontally
+            x = 0.5,                # Middle of the plot
+            y = -0.1,               # Below the x-axis
+            yanchor = 'top'         # Anchor top of legend to that y position
+          ),
+          margin = list(b = 60)     # Extra bottom margin to fit the legend
+          # -------------------------------------
         ) %>%
-        # --- FIX: "middle right" forces text to the right of the x-coordinate ---
         add_text(
           data = total_counts,
-          y = as.formula(paste0("~`", group_var, "`")),
+          y = as.formula(paste0("~`", y_var_name, "`")),
           x = ~TotalCount,
-          text = ~formatC(TotalCount, format = "d", big.mark = ","),
-          # CHANGE HERE: "middle right" places the text to the right of the data point
+          text = ~paste0(
+            "<span style='color: #000000; font-weight: bold;'>", 
+            formatC(TotalCount, format = "d", big.mark = ","),
+            " (",
+            scales::percent(FillingRate, accuracy = 1),
+            ")",
+            "</span>"
+          ),
           textposition = "middle right", 
-          textfont = list(color = 'black', size = 12, weight = "bold"), 
           showlegend = FALSE,
           inherit = FALSE,
           hoverinfo = 'none'
         )
     })
     
-    # --- DRILLDOWN HANDLER (UPDATED) ---
-    # We use a unique ID (source_id) to ensure we only catch clicks for this specific plot
-    # --- DRILLDOWN HANDLER (FIXED) ---
-    # We use a unique ID (source_id) to ensure we only catch clicks for this specific plot
+    # --- DRILLDOWN HANDLER ---
     observeEvent(event_data("plotly_click", source = source_id), {
-      
-      # 1. Get Event Data
       d <- event_data("plotly_click", source = source_id)
       if (is.null(d)) return()
       
-      # 2. Extract the Location (Y-axis)
-      # CRITICAL: We strictly grab 'y' (the location name) and ignore 'curveNumber' or color.
-      # This ensures the drilldown works based on location, regardless of whether you click Filled or Unfilled.
       clicked_location <- d$y 
-      
-      # Safety Check: Ensure the click captured a valid category/location
       if (is.null(clicked_location) || length(clicked_location) == 0) return()
       
-      # 3. Get Current State
       current_state <- isolate(plantilla_drill_state())
       if (is.null(current_state)) current_state <- list(region = NULL)
       
-      # 4. Execute Drilldown Logic
-      # Only drill down if we are currently at the top level (Region is NULL)
       if (is.null(current_state$region)) {
-        
-        # Update State: Set the region to the clicked location
         plantilla_drill_state(list(region = as.character(clicked_location)))
-        
-        # Trigger re-render of all cards
         plantilla_trigger(plantilla_trigger() + 1)
       }
     })
@@ -368,13 +354,100 @@ observe({
 # --- GLOBAL BACK BUTTON ---
 observeEvent(input$btn_back_drilldown, {
   state <- isolate(plantilla_drill_state())
-  
-  # Only trigger if we are actually drilled down
   if (!is.null(state$region)) {
     plantilla_drill_state(list(region = NULL))
     plantilla_trigger(plantilla_trigger() + 1)
   }
 })
 
-# --- REPORT GENERATOR (Unchanged) ---
-# ... (Keep your existing report generator code here) ...
+# =========================================================
+# --- PLANTILLA REPORT GENERATOR (Sorted Descending) ---
+# =========================================================
+
+output$generate_report_plantilla <- downloadHandler(
+  filename = function() {
+    paste("Plantilla_Report_", Sys.Date(), ".html", sep = "")
+  },
+  content = function(file) {
+    id <- showNotification("Generating Plantilla Report...", duration = NULL, closeButton = FALSE)
+    on.exit(removeNotification(id), add = TRUE)
+    
+    tempReport <- file.path(tempdir(), "report.Rmd")
+    file.copy("report.Rmd", tempReport, overwrite = TRUE)
+    
+    selected_pos <- input$selected_positions
+    state <- plantilla_drill_state()
+    if (is.null(state)) state <- list(region = NULL)
+    
+    final_report_data <- data.frame()
+    
+    group_col <- "GMIS.Region"
+    current_level <- "Region"
+    
+    if (!is.null(state$region)) {
+      group_col <- "GMIS.Division"
+      current_level <- "Division"
+    }
+    
+    # 1. LOOP TO GATHER DATA
+    for (pos in selected_pos) {
+      d <- dfGMIS %>% filter(Position == pos)
+      
+      if (!is.null(state$region)) {
+        d <- d %>% filter(GMIS.Region == state$region)
+      }
+      
+      summ <- d %>%
+        filter(GMIS.Region != "<not available>", GMIS.Division != "<not available>") %>% 
+        group_by(.data[[group_col]]) %>%
+        summarise(
+          Filled = sum(Total.Filled, na.rm=TRUE),
+          Unfilled = sum(Total.Unfilled, na.rm=TRUE)
+        ) %>%
+        rename(Category = .data[[group_col]])
+      
+      f_rows <- summ %>% 
+        select(Category, Value = Filled) %>% 
+        mutate(Metric = paste(pos, "(Filled)"))
+      
+      u_rows <- summ %>% 
+        select(Category, Value = Unfilled) %>% 
+        mutate(Metric = paste(pos, "(Unfilled)"))
+      
+      final_report_data <- bind_rows(final_report_data, f_rows, u_rows)
+    }
+    
+    # --- 2. CRITICAL CHANGE: FORCE SORT ORDER ---
+    # We calculate the total value per Category to determine the rank
+    rank_df <- final_report_data %>%
+      group_by(Category) %>%
+      summarise(Total = sum(Value, na.rm = TRUE)) %>%
+      arrange(Total) # Use 'Total' for ascending logic if using coord_flip, or 'desc(Total)' otherwise
+    
+    # Convert Category to a Factor with specific levels. 
+    # This forces ggplot to plot them in this exact order.
+    final_report_data$Category <- factor(final_report_data$Category, levels = rank_df$Category)
+    
+    all_metrics <- unique(final_report_data$Metric)
+    metric_names_list <- setNames(as.list(all_metrics), all_metrics)
+    
+    params_list <- list(
+      data = final_report_data,
+      metrics = all_metrics,
+      state = list(
+        level = current_level,
+        region = state$region,
+        division = NULL,
+        municipality = NULL
+      ),
+      metric_names = metric_names_list
+    )
+    
+    rmarkdown::render(
+      tempReport,
+      output_file = file,
+      params = params_list,
+      envir = new.env(parent = globalenv())
+    )
+  }
+)

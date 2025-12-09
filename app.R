@@ -83,7 +83,11 @@ DBMProp <- read.csv("DBM-Proposal.csv")
 EFDDB <- read.csv("EFD-DataBuilder-2025.csv")
 EFDMP <- read_parquet("EFD-Masterlist.parquet")
 EFD_Projects <- read.csv("EFD-ProgramsList-Aug2025.csv") 
-LMS <- read_parquet("EFD-LMS-GIDCA-NSBI2023.parquet") 
+LMS <- read_parquet("EFD-LMS-GIDCA-NSBI2023.parquet") %>% 
+  left_join(
+    uni %>% select(SchoolID, Latitude, Longitude), 
+    by = c("School_ID" = "SchoolID")
+  )
 geojson_data <- geojson_read("gadm41_PHL_1.json", what = "sp")
 geojson_table <- as.data.frame(geojson_data)
 regprov <- read.csv("RegProv.Congestion.csv")
