@@ -1,5 +1,5 @@
 # ==========================================================
-# 00_firebase_patch.R - DEBUG MODE
+# 00_firebase_patch.R - FIXED SYNTAX
 # ==========================================================
 library(R6)
 
@@ -13,44 +13,42 @@ Firebase <- R6::R6Class("Firebase",
                           },
                           
                           sign_in = function(email, password) {
-                            print(paste("PATCH: sign_in called for:", email))
                             session <- shiny::getDefaultReactiveDomain()
-                            if (is.null(session)) {
-                              print("PATCH ERROR: Session is NULL! Cannot send message.")
-                            } else {
-                              print("PATCH: Sending 'firebase-sign_in' message to JS...")
-                              session$sendCustomMessage("firebase-sign_in", list(
-                                email = email, 
-                                password = password
-                              ))
+                            if (!is.null(session)) {
+                              session$sendCustomMessage("firebase-sign_in", list(email = email, password = password))
                             }
                           },
                           
                           create_user = function(email, password) {
-                            print(paste("PATCH: create_user called for:", email))
                             session <- shiny::getDefaultReactiveDomain()
-                            session$sendCustomMessage("firebase-create_user", list(
-                              email = email, 
-                              password = password
-                            ))
+                            session$sendCustomMessage("firebase-create_user", list(email = email, password = password))
+                          },
+                          
+                          save_user_data = function(data) {
+                            session <- shiny::getDefaultReactiveDomain()
+                            if (is.data.frame(data)) data <- as.list(data)
+                            session$sendCustomMessage("firebase-save-user", data)
+                          },
+                          
+                          # --- Function to save GUEST data ---
+                          save_guest_data = function(data) {
+                            print("PATCH: save_guest_data called")
+                            session <- shiny::getDefaultReactiveDomain()
+                            if (is.data.frame(data)) data <- as.list(data)
+                            session$sendCustomMessage("firebase-save-guest", data)
                           },
                           
                           sign_out = function() {
-                            print("PATCH: sign_out called")
                             session <- shiny::getDefaultReactiveDomain()
                             session$sendCustomMessage("firebase-sign_out", list())
                           },
                           
-                          get_signed_in = function() {
-                            input <- shiny::getDefaultReactiveDomain()$input
-                            val <- input$fire_signed_in
-                            if (!is.null(val)) print("PATCH: get_signed_in retrieved value from JS")
-                            val
+                          get_signed_in = function() { 
+                            shiny::getDefaultReactiveDomain()$input$fire_signed_in 
                           },
                           
-                          get_created = function() {
-                            input <- shiny::getDefaultReactiveDomain()$input
-                            input$fire_created
+                          get_created = function() { 
+                            shiny::getDefaultReactiveDomain()$input$fire_created 
                           }
                         )
 )

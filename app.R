@@ -123,23 +123,19 @@ ui <- page_fluid(
   # --- 🔴 INLINE JAVASCRIPT FIX (Start) ---
   # This guarantees the listener is registered, even if script.js fails to load.
   # --- 🔴 UPDATED INLINE JAVASCRIPT (Includes Google) ---
+  # --- 🔴 UPDATED INLINE JAVASCRIPT (Includes Registration & Firestore) ---
   tags$script(HTML('
     $(document).on("shiny:connected", function() {
         console.log("✅ JS: Shiny Connected. Registering Auth Handlers...");
         
-        // 1. Email/Password Handler
+        // 1. SIGN IN Handler
         Shiny.addCustomMessageHandler("firebase-sign_in", function(message) {
           console.log("🔥 JS: Received Email login command.");
           if(typeof showLoader === "function") showLoader("Authenticating...");
           
-          if (typeof firebase === "undefined") {
-             alert("Error: Firebase SDK is missing."); return;
-          }
-
           firebase.auth().signInWithEmailAndPassword(message.email, message.password)
             .then((userCredential) => {
               var user = userCredential.user;
-              // Send Success back to R
               Shiny.setInputValue("login_success_manual", {
                 email: user.email,
                 uid: user.uid,
@@ -153,19 +149,68 @@ ui <- page_fluid(
             });
         });
 
-        // 2. Google Login Handler (NEW)
+        // 2. CREATE USER Handler (Updated)
+Shiny.addCustomMessageHandler("firebase-create_user", function(message) {
+  console.log("🔥 JS: Creating user account...", message.email);
+  if(typeof showLoader === "function") showLoader("Creating Account...");
+
+  firebase.auth().createUserWithEmailAndPassword(message.email, message.password)
+    .then((userCredential) => {
+      console.log("✅ JS: Account Created Successfully!");
+      var user = userCredential.user;
+      
+      // AUTO-LOGIN ON SUCCESS
+      // This is the signal that actually logs the user into the R dashboard
+      Shiny.setInputValue("login_success_manual", {
+        email: user.email,
+        uid: user.uid,
+        provider: "email"
+      }, {priority: "event"});
+      
+    })
+    .catch((error) => {
+      console.error("❌ JS: Registration Failed", error.message);
+      
+      if (error.code === "auth/email-already-in-use") {
+         // --- CUSTOM POPUP FOR DUPLICATE EMAIL ---
+         alert("Registered email already existed, go to log in page to log in your account");
+         
+         // Send signal to R to switch the UI back to Login
+         Shiny.setInputValue("auth-js_switch_to_login", Math.random(), {priority: "event"});
+         
+      } else {
+         // Other errors (weak password, etc.)
+         alert("Registration Failed: " + error.message);
+      }
+      
+      if(typeof hideLoader === "function") hideLoader();
+    });
+});
+
+        // 3. SAVE USER DATA Handler (For Firestore)
+        Shiny.addCustomMessageHandler("firebase-save-user", function(data) {
+          console.log("🔥 JS: Saving profile data...", data);
+          
+          var db = firebase.firestore();
+          // Use Email as the document ID
+          db.collection("users").doc(data.Email_Address).set(data)
+            .then(() => {
+              console.log("✅ JS: Profile saved to Firestore.");
+            })
+            .catch((error) => {
+              console.error("❌ JS: Firestore Save Error", error);
+            });
+        });
+
+        // 4. Google Login Handler
         Shiny.addCustomMessageHandler("firebase-google-auth", function(message) {
           console.log("🔥 JS: Received Google login command.");
           if(typeof showLoader === "function") showLoader("Connecting to Google...");
 
           var provider = new firebase.auth.GoogleAuthProvider();
-
           firebase.auth().signInWithPopup(provider)
             .then((result) => {
               var user = result.user;
-              console.log("✅ JS: Google Login Success:", user.email);
-              
-              // Reuse the SAME success input name so R handles it automatically
               Shiny.setInputValue("login_success_manual", {
                 email: user.email,
                 uid: user.uid,
@@ -174,11 +219,27 @@ ui <- page_fluid(
             })
             .catch((error) => {
               console.error("❌ JS: Google Login Failed", error.message);
-              Shiny.setInputValue("login_error_manual", { code: error.code, message: error.message }, {priority: "event"});
               if(typeof hideLoader === "function") hideLoader();
             });
         });
-
+        // 5. SAVE GUEST DATA Handler (NEW)
+        Shiny.addCustomMessageHandler("firebase-save-guest", function(data) {
+          console.log("🔥 JS: Saving GUEST data...", data);
+          
+          if (typeof firebase === "undefined") return;
+          var db = firebase.firestore();
+          
+          // Generate a unique ID based on timestamp + random number
+          var guestId = "guest_" + Date.now() + "_" + Math.floor(Math.random() * 1000);
+          
+          db.collection("guests").doc(guestId).set(data)
+            .then(() => {
+              console.log("✅ JS: Guest data saved.");
+            })
+            .catch((error) => {
+              console.error("❌ JS: Guest Save Error", error);
+            });
+        });
     });
   ')),
   # --- 🔴 INLINE JAVASCRIPT FIX (End) ---
@@ -187,6 +248,8 @@ ui <- page_fluid(
   ui_loading,
   ui_footer
 )
+
+
 
 # ==========================================================
 # 3. SERVER LOGIC
@@ -202,6 +265,7 @@ server <- function(input, output, session) {
   # 2. GLOBAL VARIABLES
   user_status <- reactiveVal("unauthenticated")
   authenticated_user <- reactiveVal(NULL)
+  should_show_tour <- reactiveVal(FALSE)
   form_choice <- reactiveVal("login")
   
   # -------------------------------------------------------------
@@ -214,8 +278,9 @@ server <- function(input, output, session) {
   
   # 3. AUTH MODULE (Handles Buttons)
   source("server_parts/29_authentication_module.R", local = TRUE) 
+  # In app.R (Server section)
   callModule(authentication_server, "auth", 
-             user_status, authenticated_user, f)
+             user_status, authenticated_user, f, user_database, should_show_tour)
   
   # ... inside server(input, output, session) ...
   
@@ -279,7 +344,7 @@ server <- function(input, output, session) {
   source("server_parts/17_efd_infra_dashboard.R", local = TRUE)
   source("server_parts/18_hrod_databuilder.R", local = TRUE)
   source("server_parts/19_third_level_db.R", local = TRUE)
-  source("server_parts/21_welcome_modal_UI.R", local = TRUE)
+  # source("server_parts/21_welcome_modal_UI.R", local = TRUE)
   source("server_parts/22_quick_school_search.R", local = TRUE)
   source("server_parts/23_plantilla_dynamic_db.R", local = TRUE)
   source("server_parts/24_renderleaflet_resource_mapping.R", local = TRUE)
