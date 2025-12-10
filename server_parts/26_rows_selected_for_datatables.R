@@ -187,8 +187,10 @@ observeEvent(input$TeacherShortage_Table_rows_selected, {
   RegRCT <- input$resource_map_region
   SDORCT1 <- input$Resource_SDO
   DistRCT1 <- input$Resource_LegDist
+  Lev <- input$resource_map_level
   
-  mainreact1 <- df %>% filter(Region == RegRCT) %>% filter(Division == SDORCT1) %>% filter(Legislative.District == DistRCT1) %>% arrange(desc(TeacherShortage))
+  
+  mainreact1 <- df %>% filter(Region == RegRCT) %>% filter(Division == SDORCT1) %>% filter(Legislative.District == DistRCT1) %>% filter(Level == Lev)
   
   df1 <- reactive({
     if (is.null(input$TeacherShortage_Mapping_bounds)) {

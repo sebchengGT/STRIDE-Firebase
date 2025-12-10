@@ -11,6 +11,7 @@ params:
   df_basic: NA
   df_enrol: NA
   df_teachers: NA
+  df_ntp: NA
   df_infra: NA
   df_spec: NA
 ---
@@ -167,7 +168,7 @@ if (!is.null(df) && nrow(df) > 0) {
 </div>
 
 ```{r, results='asis'}
-render_info_table(params$df_enrol, exclude_metrics = c("Total Enrolment"))
+render_info_table(params$df_enrol)
 ```
 
 ### <i class="glyphicon glyphicon-education"></i> Teachers
@@ -177,12 +178,26 @@ render_info_table(params$df_enrol, exclude_metrics = c("Total Enrolment"))
 </div>
 
 ```{r, results='asis'}
-render_info_table(params$df_teachers, exclude_metrics = c("Total Teachers"))
+render_info_table(params$df_teachers)
+```
+
+### <i class="glyphicon glyphicon-briefcase"></i> Non-Teaching Personnel Deployment
+<div class="highlight-box">
+  <span class="highlight-label">AO II Deployment</span>
+  <span class="highlight-stat">`r val <- get_val(params$df_ntp, "AO II Deployment Status"); if(is.null(val)) "-" else val`</span>
+</div>
+
+```{r, results='asis'}
+render_info_table(params$df_ntp)
 ```
 
 ### <i class="glyphicon glyphicon-home"></i> Infrastructure
+<div class="highlight-box">
+  <span class="highlight-label">Estimated Classroom Shortage</span>
+  <span class="highlight-stat">`r val <- get_val(params$df_infra, "Estimated Shortage"); if(is.null(val)) "-" else val`</span>
+</div>
 ```{r, results='asis'}
-render_info_table(params$df_infra, exclude_metrics = c("Total Buildings", "Total Classrooms", "Estimated Shortage"))
+render_info_table(params$df_infra)
 ```
 
 </div></div></div>

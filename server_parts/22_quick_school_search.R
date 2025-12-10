@@ -496,7 +496,7 @@ align = 'c', colnames = FALSE, sanitize.text.function = function(x) x)
 output$qs_teachers <- renderTable({
   data <- qs_data(); req(nrow(data) > 0)
   df <- data.frame(
-    Metric = c("Elementary Teachers", "JHS Teachers", "SHS Teachers", "Total Teachers"),
+    Metric = c("ES Teachers", "JHS Teachers", "SHS Teachers", "Total Teachers"),
     Value = as.character(c(
       data$ES.Teachers, data$JHS.Teachers, data$SHS.Teachers, data$TotalTeachers
     ))
@@ -604,74 +604,146 @@ align = 'c', colnames = FALSE, sanitize.text.function = function(x) x)
 
 
 # --- 7. HTML DOWNLOAD HANDLER (Final Version) ---
+# --- 7. HTML DOWNLOAD HANDLER (Fixed) ---
+# --- 7. HTML DOWNLOAD HANDLER (Fixed & Robust) ---
+# --- 7. HTML DOWNLOAD HANDLER (Debug & Robust Version) ---
 output$download_school_profile <- downloadHandler(
   filename = function() {
-    req(qs_data())
-    safe_name <- gsub("[^[:alnum:]]", "_", qs_data()$School.Name)
-    paste0("STRIDE_Profile_", safe_name, "_", Sys.Date(), ".html") # <--- .html extension
+    tryCatch({
+      req(qs_data())
+      # 1. Get School Name safely
+      s_name <- qs_data()$School.Name
+      if(is.null(s_name) || is.na(s_name)) s_name <- "School"
+      
+      # 2. Clean it strictly (remove special chars/spaces)
+      safe_name <- gsub("[^a-zA-Z0-9]", "_", s_name)
+      
+      # 3. Create filename
+      fname <- paste0("STRIDE_Profile_", safe_name, "_", Sys.Date(), ".html")
+      print(paste("Filename generated:", fname)) # Debug print
+      return(fname)
+    }, error = function(e) {
+      print(paste("Error in filename:", e$message))
+      return("Error_Report.html")
+    })
   },
   
   content = function(file) {
+    print("--- STARTING DOWNLOAD PROCESS ---")
     
-    data <- qs_data()
-    req(nrow(data) > 0)
-    
-    # 2. Helper Function (No sanitizer needed for HTML)
-    create_filtered_table <- function(metrics, values) {
-      df <- data.frame(
-        Metric = metrics,
-        Value = as.character(values), 
-        stringsAsFactors = FALSE
+    tryCatch({
+      # 1. Setup Data
+      data <- qs_data()
+      req(nrow(data) > 0)
+      
+      # 2. Locate Template (CRITICAL STEP)
+      # We look in current folder AND 'www' folder
+      possible_paths <- c("school_profile_template.Rmd", "www/school_profile_template.Rmd")
+      src_rmd <- NULL
+      
+      for (path in possible_paths) {
+        if (file.exists(path)) {
+          src_rmd <- normalizePath(path, winslash = "/")
+          break
+        }
+      }
+      
+      if (is.null(src_rmd)) {
+        stop("Template file 'school_profile_template.Rmd' not found in App folder or 'www' subfolder.")
+      }
+      print(paste("Template found at:", src_rmd))
+      
+      # 3. Create a Safe Temp Directory
+      # We use a random sub-folder to avoid file conflicts
+      temp_dir <- file.path(tempdir(), paste0("stride_", as.integer(Sys.time())))
+      dir.create(temp_dir, showWarnings = FALSE)
+      
+      # 4. Copy Template to Temp Directory
+      # This isolates the render process
+      temp_rmd <- file.path(temp_dir, "report.Rmd")
+      file.copy(src_rmd, temp_rmd, overwrite = TRUE)
+      
+      # 5. Prepare Data Tables
+      # (Same logic as before, just ensuring it's safe)
+      create_filtered_table <- function(metrics, values) {
+        df <- data.frame(Metric = metrics, Value = as.character(values), stringsAsFactors = FALSE)
+        df %>% filter(!Value %in% c("0", "N/A", "-", "", NA, "NA", "0.0", "0.00")) %>% filter(!is.na(Value))
+      }
+      
+      df_basic <- create_filtered_table(
+        c("School Name", "School ID", "School Head", "Position", "Curricular Offering", "Typology", "Region", "Division", "District", "Municipality", "Barangay"),
+        c(data$School.Name, data$SchoolID, data$School.Head.Name, data$SH.Position, data$Modified.COC, data$School.Size.Typology, data$Region, data$Division, data$District, data$Municipality, data$Barangay)
       )
-      df %>% 
-        filter(!Value %in% c("0", "N/A", "-", "", NA, "NA", "0.0", "0.00")) %>% 
-        filter(!is.na(Value))
-    }
-    
-    # 3. Prepare Data Frames
-    df_basic <- create_filtered_table(
-      c("School Name", "School ID", "School Head", "Position", "Curricular Offering", "Typology", "Region", "Division", "District", "Municipality", "Barangay"),
-      c(data$School.Name, data$SchoolID, data$School.Head.Name, data$SH.Position, data$Modified.COC, data$School.Size.Typology, data$Region, data$Division, data$District, data$Municipality, data$Barangay)
-    )
-    
-    df_enrol <- create_filtered_table(
-      c("Kinder", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12", "Total Enrolment"),
-      c(data$Kinder, data$G1, data$G2, data$G3, data$G4, data$G5, data$G6, data$G7, data$G8, data$G9, data$G10, data$G11, data$G12, data$TotalEnrolment)
-    )
-    
-    df_teachers <- create_filtered_table(
-      c("Elementary Teachers", "JHS Teachers", "SHS Teachers", "Total Teachers", "ES Shortage", "JHS Shortage", "SHS Shortage", "Total Shortage", "ES Excess", "JHS Excess", "SHS Excess", "Total Excess"),
-      c(data$ES.Teachers, data$JHS.Teachers, data$SHS.Teachers, data$TotalTeachers, data$ES.Shortage, data$JHS.Shortage, data$SHS.Shortage, data$Total.Shortage, data$ES.Excess, data$JHS.Excess, data$SHS.Excess, data$Total.Excess)
-    )
-    
-    buildable_val <- if(is.list(data$With_Buildable_space)) unlist(data$With_Buildable_space) else data$With_Buildable_space
-    df_infra <- create_filtered_table(
-      c("Total Buildings", "Total Classrooms", "Classroom Requirement", "Estimated Shortage", "Major Repairs Needed", "Shifting Schedule", "Buildable Space Available", "Electricity Source", "Water Source", "Ownership Type", "Total Seats", "Seats Shortage"),
-      c(data$Buildings, data$Instructional.Rooms.2023.2024, data$Classroom.Requirement, data$Est.CS, data$Major.Repair.2023.2024, data$Shifting, buildable_val, data$ElectricitySource, data$WaterSource, data$OwnershipType, data$Total.Seats.2023.2024, data$Total.Seats.Shortage.2023.2024)
-    )
-    
-    df_spec <- create_filtered_table(
-      c("English", "Mathematics", "Science", "Biological Sciences", "Physical Sciences", "General Education", "Araling Panlipunan", "TLE", "MAPEH", "Filipino", "ESP", "Agriculture", "ECE", "SPED"),
-      c(data$English, data$Mathematics, data$Science, data$Biological.Sciences, data$Physical.Sciences, data$General.Ed, data$Araling.Panlipunan, data$TLE, data$MAPEH, data$Filipino, data$ESP, data$Agriculture, data$ECE, data$SPED)
-    )
-    
-    # 4. Render Template
-    tempReport <- file.path(tempdir(), "school_profile_template.Rmd")
-    if (file.exists("school_profile_template.Rmd")) {
-      file.copy("school_profile_template.Rmd", tempReport, overwrite = TRUE)
-    } else {
-      file.copy("www/school_profile_template.Rmd", tempReport, overwrite = TRUE)
-    }
-    
-    params_list <- list(
-      school_name = data$School.Name,
-      df_basic = df_basic,
-      df_enrol = df_enrol,
-      df_teachers = df_teachers,
-      df_infra = df_infra,
-      df_spec = df_spec
-    )
-    
-    rmarkdown::render(tempReport, output_file = file, params = params_list, envir = new.env(parent = globalenv()))
+      
+      df_enrol <- create_filtered_table(
+        c("Kinder", "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6", "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12", "Total Enrolment"),
+        c(data$Kinder, data$G1, data$G2, data$G3, data$G4, data$G5, data$G6, data$G7, data$G8, data$G9, data$G10, data$G11, data$G12, data$TotalEnrolment)
+      )
+      
+      df_teachers <- create_filtered_table(
+        c("Elementary Teachers", "JHS Teachers", "SHS Teachers", "Total Teachers", "ES Shortage", "JHS Shortage", "SHS Shortage", "Total Shortage", "ES Excess", "JHS Excess", "SHS Excess", "Total Excess"),
+        c(data$ES.Teachers, data$JHS.Teachers, data$SHS.Teachers, data$TotalTeachers, data$ES.Shortage, data$JHS.Shortage, data$SHS.Shortage, data$Total.Shortage, data$ES.Excess, data$JHS.Excess, data$SHS.Excess, data$Total.Excess)
+      )
+      
+      df_ntp <- create_filtered_table(
+        c("AO II Deployment Status", "PDO I Deployment", "COS Status"),
+        c(data$Clustering.Status, data$PDOI_Deployment, data$Outlier.Status)
+      )
+      
+      buildable_val <- if(is.list(data$With_Buildable_space)) unlist(data$With_Buildable_space) else data$With_Buildable_space
+      
+      df_infra <- create_filtered_table(
+        c("Total Buildings", "Total Classrooms", "Classroom Requirement", "Estimated Shortage", "Major Repairs Needed", "Shifting Schedule", "Buildable Space Available", "Electricity Source", "Water Source", "Ownership Type", "Total Seats", "Seats Shortage"),
+        c(data$Buildings, data$Instructional.Rooms.2023.2024, data$Classroom.Requirement, data$Est.CS, data$Major.Repair.2023.2024, data$Shifting, buildable_val, data$ElectricitySource, data$WaterSource, data$OwnershipType, data$Total.Seats.2023.2024, data$Total.Seats.Shortage.2023.2024)
+      )
+      
+      df_spec <- create_filtered_table(
+        c("English", "Mathematics", "Science", "Biological Sciences", "Physical Sciences", "General Education", "Araling Panlipunan", "TLE", "MAPEH", "Filipino", "ESP", "Agriculture", "ECE", "SPED"),
+        c(data$English, data$Mathematics, data$Science, data$Biological.Sciences, data$Physical.Sciences, data$General.Ed, data$Araling.Panlipunan, data$TLE, data$MAPEH, data$Filipino, data$ESP, data$Agriculture, data$ECE, data$SPED)
+      )
+      
+      params_list <- list(
+        school_name = data$School.Name,
+        df_basic = df_basic,
+        df_enrol = df_enrol,
+        df_teachers = df_teachers,
+        df_ntp = df_ntp,
+        df_infra = df_infra,
+        df_spec = df_spec
+      )
+      
+      print("Data prepared. Starting Render...")
+      
+      # 6. Render
+      # We render to a specific file inside the temp folder
+      temp_output <- file.path(temp_dir, "output.html")
+      
+      rmarkdown::render(
+        input = temp_rmd,
+        output_file = "output.html", # Relative to temp_rmd location
+        params = params_list,
+        envir = new.env(parent = globalenv()),
+        quiet = TRUE
+      )
+      
+      print(paste("Render complete. Output at:", temp_output))
+      
+      if (!file.exists(temp_output)) {
+        stop("Render finished but output file was not created.")
+      }
+      
+      # 7. Deliver File
+      # Copy from temp location to the Shiny download path
+      file.copy(temp_output, file, overwrite = TRUE)
+      print("File copied to download stream successfully.")
+      
+      # Cleanup
+      unlink(temp_dir, recursive = TRUE)
+      
+    }, error = function(e) {
+      # This prints the REAL error to your RStudio Console
+      print(paste("!!! DOWNLOAD ERROR !!! :", e$message))
+      stop(e)
+    })
   }
 )
