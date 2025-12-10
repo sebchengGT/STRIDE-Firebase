@@ -30,7 +30,8 @@ library(reactablefmtr)
 library(rintrojs)
 library(webshot)
 library(tinytex)
-library(firebase) 
+library(firebase)
+library(blastula)
 
 # ==========================================================
 # 1. DATA LOADING & PREPARATION

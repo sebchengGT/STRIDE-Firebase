@@ -63,8 +63,7 @@ data_TS <- eventReactive(input$Mapping_Run, {
     filter(Region == inputs$RegRCT) %>% 
     filter(Division == inputs$SDORCT1) %>% 
     filter(Legislative.District == inputs$DistRCT1) %>% 
-    filter(Level == inputs$Lev) %>% 
-    arrange(desc(TeacherShortage))
+    filter(Level == inputs$Lev)
 })
 
 # ----- Data for Teacher Shortage ValueBoxes -----
@@ -407,15 +406,27 @@ observeEvent(data_EFD(), {
       clusterOptions = markerClusterOptions(disableClusteringAtZoom = 15),
       lng = ~Longitude,
       lat = ~Latitude,
-      popup = values.efdmasterlist,
-      icon = makeAwesomeIcon(
+      # --- CHANGED: Use 'label' for hover interaction ---
+      label = values.efdmasterlist, 
+      
+      # Optional: Customize how the hover box looks
+      labelOptions = labelOptions(
+        noHide = FALSE,          # FALSE means it hides when you move mouse away
+        direction = "auto",      # Places label where there is space
+        textsize = "12px",       # Font size
+        style = list(
+          "font-weight" = "bold",
+          "padding" = "3px 8px",
+          "border-radius" = "5px"
+        )
+      ),
+      # -------------------------------------------------      icon = makeAwesomeIcon(
         icon = "education",
         library = "glyphicon",
         markerColor = case_when(mainreactEFD$FundingCategory == "Before 2025" ~ "red", 
                                 mainreactEFD$FundingCategory == "2025-2030" ~ "green", 
                                 mainreactEFD$FundingCategory == "After 2030" ~ "blue")
-      )
-    ) %>%
+      ) %>%
     addLegend("bottomright", pal = color_palette, values = ~FundingCategory, title = "Funding Year", opacity = 1)
 })
 
