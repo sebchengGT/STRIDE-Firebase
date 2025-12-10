@@ -390,7 +390,7 @@ server <- function(input, output, session) {
   source("server_parts/32_guest_mode.R", local = TRUE)
   source("server_parts/34_home.R", local = TRUE)
   source("server_parts/AdvancedAnalytics_Server.R", local = TRUE)
-  source("server_parts/35_quick_tour.R", local = TRUE)
+  # source("server_parts/35_quick_tour.R", local = TRUE)
   source("server_parts/99_others.R", local = TRUE)
   
   # Legacy Sections
