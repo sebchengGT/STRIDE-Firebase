@@ -618,13 +618,8 @@ output$STRIDE2 <- renderUI({
                             actionButton("add_adv_filter_btn", "Add Variable Filter", 
                                          icon = icon("plus"), class = "btn-default w-100 mb-3"),
                             hr(),
-                            # # --- INSERT BUTTON 2 HERE ---
-                            # tags$div(
-                            #   style = "margin-bottom: 15px;",
-                            #   downloadButton("generate_report_adv", "Generate Report", 
-                            #                  class = "btn-danger", 
-                            #                  style = "width: 100%; background-color: #CE1126; border: none; font-weight: bold;")
-                            # ),
+                            # --- INSERT BUTTON 2 HERE ---
+                            # (Moved to Drilldown Plot header)
                             # ----------------------------
                             actionButton("adv_analytics_run", "Apply Filters & Plot", 
                                          icon = icon("play"), class = "btn-primary w-100")
@@ -632,7 +627,14 @@ output$STRIDE2 <- renderUI({
           fluidRow(
             column(12,
                    card(
-                     card_header("Drilldown Plot"),
+                     card_header(
+                       div(class = "d-flex justify-content-between align-items-center",
+                           span("Drilldown Plot"),
+                           downloadButton("adv_download_data", "Download CSV", 
+                                          class = "btn-success btn-sm", 
+                                          style = "font-weight: bold;")
+                       )
+                     ),
                      card_body(
                        uiOutput("adv_drill_controls_ui"),
                        plotOutput("advanced_drilldown_plot", click = "adv_plot_click")
