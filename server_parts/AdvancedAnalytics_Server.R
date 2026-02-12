@@ -272,17 +272,12 @@ output$advanced_drilldown_plot <- renderPlot({
   
   current_index <- match(drill_level, drill_levels)
   
-  
-  # Calculate total schools in the current filtered view
-  total_schools <- nrow(drilled_data_and_level()$data)
-  formatted_total <- format(total_schools, big.mark = ",")
-  
   if (current_index == length(drill_levels)) {
-    title_text <- paste0("School Count by ", drill_level, " (Total Schools: ", formatted_total, ")")
+    title_text <- paste("School Count by", drill_level, "(Top 25)")
     subtitle_text <- "End of drilldown. See table and map below."
   } else {
     next_level <- drill_levels[current_index + 1]
-    title_text <- paste0("School Count by ", next_level, " (Total Schools: ", formatted_total, ")")
+    title_text <- paste("School Count by", next_level, "(Top 25)")
     subtitle_text <- paste("Click a bar to drill down into a", next_level)
   }
   
@@ -475,54 +470,3 @@ observeEvent(input$advanced_data_table_rows_selected, {
     print(paste("--- MAP SETVIEW ERROR:", e$message, "---"))
   })
 })
-
-# --- 6. New Features: Total Count & Download ---
-
-# --- 6a. Render Total Schools Count ---
-output$adv_total_schools <- renderText({
-  req(drilled_data_and_level())
-  data <- drilled_data_and_level()$data
-  format(nrow(data), big.mark = ",")
-})
-
-# --- 6b. Download Handler ---
-output$adv_download_data <- downloadHandler(
-  filename = function() {
-    paste0("STRIDE_Advanced_Analytics_", format(Sys.Date(), "%Y-%m-%d"), ".csv")
-  },
-  content = function(file) {
-    req(drilled_data_and_level())
-    
-    # 1. Get filtered data
-    data_to_export <- drilled_data_and_level()$data
-    
-    # 2. Identify selected columns from dynamic filters
-    # User requested: Region, Division, District, SchoolID, SchoolName, Enrolment, Classrooms
-    # PLUS the sidebar filters.
-    
-    base_cols <- c("Region", "Division", "District", "SchoolID", "School.Name", "TotalEnrolment", "Instructional.Rooms.2023.2024")
-    
-    # Get active filter IDs to find column names
-    current_filter_ids <- isolate(active_filter_ids())
-    dynamic_cols <- c()
-    
-    if (length(current_filter_ids) > 0) {
-      for (id in current_filter_ids) {
-        col_name <- isolate(input[[paste0("adv_col_", id)]])
-        if (!is.null(col_name) && col_name != "") {
-          dynamic_cols <- c(dynamic_cols, col_name)
-        }
-      }
-    }
-    
-    # Combine and unique
-    final_cols <- unique(c(base_cols, dynamic_cols))
-    
-    # 3. Select columns if they exist in data (handle potential missing columns gracefully)
-    valid_cols <- intersect(final_cols, names(data_to_export))
-    
-    data_export_final <- data_to_export %>% select(all_of(valid_cols))
-    
-    write.csv(data_export_final, file, row.names = FALSE)
-  }
-)
