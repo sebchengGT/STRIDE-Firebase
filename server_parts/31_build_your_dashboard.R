@@ -45,9 +45,9 @@ hr_metric_choices <- list(
                            "School Size Typology" = "School.Size.Typology", 
                            "Curricular Offering" = "Modified.COC",
                            "Shifting" = "Shifting"),
-  `Teaching Data` = c("Number of Teachers" = "TotalTeachers"), 
+  `Teaching Data` = c("Number of Teachers" = "TotalTeachers", 
                       # "Teacher Excess" = "Total.Excess", 
-                      # "Teacher Shortage" = "Total.Shortage"),
+                      "Teacher Shortage" = "Total.Shortage"),
   `Non-teaching Data` = c("COS" = "Outlier.Status", 
                           "AOII Clustering Status" = "Clustering.Status"),
   `Enrolment Data` = c("Total Enrolment" = "TotalEnrolment", "Kinder" = "Kinder", 
@@ -202,7 +202,7 @@ all_selected_metrics <- reactive({
 # --- *** START: PRESET & PICKER SYNC LOGIC *** ---
 
 # --- Define Metric Groups ---
-teacher_metrics <- c("TotalTeachers") #, "Total.Shortage", "Total.Excess")
+teacher_metrics <- c("TotalTeachers", "Total.Shortage") #, "Total.Excess")
 school_metrics <- c("Total.Schools","School.Size.Typology", "Modified.COC","Shifting") 
 classroom_metrics <- c("Instructional.Rooms.2023.2024", "Classroom.Requirement","Classroom.Shortage","Buildable_Space")
 enrolment_metrics <- c("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12")
@@ -839,6 +839,10 @@ observe({
     # --- Geographic Drilldown Observer ---
     observeEvent(event_data("plotly_click", source = current_metric_source), { 
       state <- isolate(global_drill_state()); if (state$level == "District") return() 
+      
+      # --- RESTRICTION: Teacher Shortage stops at Division ---
+      if (current_metric == "Total.Shortage" && state$level == "Division") return()
+      
       d <- event_data("plotly_click", source = current_metric_source); if (is.null(d$y)) return()
       
       new_state <- state 
@@ -996,6 +1000,36 @@ summarized_data_long <- reactive({
       rename(Category = !!sym(group_by_col)) %>%
       mutate(Metric = "Total.Schools") 
     summaries_list[["school_count"]] <- school_count_summary
+  }
+  
+  # --- NEW: Aggregation for Division-Level Teacher Shortage ---
+  if ("Total.Shortage" %in% metrics_to_process && exists("teacher_shortage_df")) {
+    
+    # Filter based on current drilldown state
+    ts_filtered <- teacher_shortage_df
+    
+    # 1. Apply Regional Filter (if filtering by Region or drilled down to Division/Municipality)
+    if (state$level %in% c("Division", "Municipality", "Legislative.District", "District")) {
+       req(state$region)
+       ts_filtered <- ts_filtered %>% filter(Region == state$region)
+    }
+    
+    # 2. Determine Grouping
+    # If Level is Region -> Group by Region.
+    # If Level is Division/Lower -> Group by Division. (Shortage stops at Division)
+    
+    ts_group_col <- if (state$level == "Region") "Region" else "Division"
+    
+    ts_summary <- ts_filtered %>%
+      group_by(!!sym(ts_group_col)) %>%
+      summarise(Value = sum(Total.Shortage, na.rm = TRUE), .groups = "drop") %>%
+      rename(Category = !!sym(ts_group_col)) %>%
+      mutate(Metric = "Total.Shortage")
+    
+    summaries_list[["teacher_shortage"]] <- ts_summary
+    
+    # Remove from generic processing to avoid errors/duplication
+    metrics_to_process <- setdiff(metrics_to_process, "Total.Shortage")
   }
   
   # --- UPDATED: Added new metrics to categorical list ---
@@ -1299,12 +1333,27 @@ output$dashboard_grid <- renderUI({
       )
     }
     
+    # --- NEW: Teacher Shortage Disclaimer ---
+    disclaimer_content <- NULL
+    if (current_metric == "Total.Shortage") {
+      disclaimer_content <- tags$div(
+        style = "font-size: 0.65em; color: #666; margin-top: 5px; line-height: 1.1; border-top: 1px solid #eee; padding-top: 5px;",
+        tags$strong("TEACHER SHORTAGE FOR ALL PUBLIC SCHOOLS"), tags$br(),
+        "Based on SY 2024-2025 LIS Enrolment data as of January 31, 2025", tags$br(),
+        "Teaching Inventory Based on DBM-GMIS PSIPOP as of December 31, 2024", tags$br(),
+        "Based on existing parameters", tags$br(),
+        "As submitted to DBM re FY 2026 proposal", tags$br(),
+        tags$em("Note: The reported teacher shortage is subject to change upon availability of the latest SY 2025-2026 enrollment data and finalization of FY 2026 allocation.")
+      )
+    }
+
     bslib::card(
       full_screen = TRUE,
       card_header(current_metric_name),
       card_body(
         tags$div(style = "text-align: center; padding-bottom: 10px;", summary_card_content),
-        plotlyOutput(paste0("plot_", .x), width = "100%", height = "100%") 
+        plotlyOutput(paste0("plot_", .x), width = "100%", height = "100%"),
+        disclaimer_content
       )
     )
   })

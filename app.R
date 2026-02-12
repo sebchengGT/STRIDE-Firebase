@@ -58,6 +58,110 @@ uni <- left_join(uni48k, uni45k, by = "SchoolID") %>%
     everything()
   )
 
+# --- LOAD DATA FROM AZURE DATABASE ---
+# Initialize global dataframe for Teacher Shortage (Division Level)
+teacher_shortage_df <- tibble(Region = character(), Division = character(), Total.Shortage = numeric())
+
+tryCatch({
+  message("Attempting to connect to Azure Database: STRIDE...")
+  
+  # Connect to the database
+  con <- dbConnect(
+    RPostgres::Postgres(),
+    dbname = "STRIDE",
+    host = "stride-posgre-prod-01.postgres.database.azure.com",
+    port = 5432,
+    user = "Administrator1",
+    password = "pRZTbQ2T1JD7",
+    sslmode = "require"
+  )
+  
+  if (dbExistsTable(con, "teachershortage")) {
+    message("Table 'teachershortage' found. Loading data...")
+    ts_raw <- dbReadTable(con, "teachershortage")
+    
+    # --- EXACT COLUMN MAPPING (Based on confirmed schema) ---
+    # Database Table: teachershortage
+    # Columns: region (text), division (text), teacher_shortage2026 (integer)
+    
+    # Check if required columns exist (case-insensitive check just in case)
+    db_cols <- names(ts_raw)
+    db_cols_lower <- tolower(db_cols)
+    
+    # Define verified column targets
+    target_reg <- "region"
+    target_div <- "division"
+    target_shortage <- "teacher_shortage2026"
+    
+    # Find actual column names (handling case differences if any)
+    reg_idx <- which(db_cols_lower == target_reg)
+    div_idx <- which(db_cols_lower == target_div)
+    shortage_idx <- which(db_cols_lower == target_shortage)
+    
+    if (length(reg_idx) > 0 && length(div_idx) > 0 && length(shortage_idx) > 0) {
+      
+      actual_reg <- db_cols[reg_idx[1]]
+      actual_div <- db_cols[div_idx[1]]
+      actual_shortage <- db_cols[shortage_idx[1]]
+      
+      message(paste("Using DB Columns -> Region:", actual_reg, "| Division:", actual_div, "| Shortage:", actual_shortage))
+      
+      # Create the standardized global dataframe
+      teacher_shortage_df <- ts_raw %>%
+        select(all_of(c(actual_reg, actual_div, actual_shortage))) %>%
+        rename(
+          Region = !!sym(actual_reg),
+          Division = !!sym(actual_div),
+          Total.Shortage = !!sym(actual_shortage)
+        ) %>%
+        mutate(
+          # 1. Clean Numeric (Shortage is integer in DB, but safety first)
+          Total.Shortage = as.numeric(gsub("[^0-9.-]", "", as.character(Total.Shortage))),
+          
+          # 2. Normalize Region Names (Robust Mapping)
+          Region = case_when(
+            grepl("Region I$|Region 1$", Region, ignore.case = TRUE) ~ "Region I",
+            grepl("Region II$|Region 2$", Region, ignore.case = TRUE) ~ "Region II",
+            grepl("Region III$|Region 3$", Region, ignore.case = TRUE) ~ "Region III",
+            grepl("Region IV-A$|Region 4A$|CALABARZON", Region, ignore.case = TRUE) ~ "Region IV-A",
+            grepl("Region IV-B$|Region 4B$|MIMAROPA", Region, ignore.case = TRUE) ~ "MIMAROPA",
+            grepl("Region V$|Region 5$", Region, ignore.case = TRUE) ~ "Region V",
+            grepl("Region VI$|Region 6$", Region, ignore.case = TRUE) ~ "Region VI",
+            grepl("Region VII$|Region 7$", Region, ignore.case = TRUE) ~ "Region VII",
+            grepl("Region VIII$|Region 8$", Region, ignore.case = TRUE) ~ "Region VIII",
+            grepl("Region IX$|Region 9$", Region, ignore.case = TRUE) ~ "Region IX",
+            grepl("Region X$|Region 10$", Region, ignore.case = TRUE) ~ "Region X",
+            grepl("Region XI$|Region 11$", Region, ignore.case = TRUE) ~ "Region XI",
+            grepl("Region XII$|Region 12$|SOCCSKSARGEN", Region, ignore.case = TRUE) ~ "Region XII",
+            grepl("CARAGA|Region 13", Region, ignore.case = TRUE) ~ "CARAGA",
+            grepl("NCR|National Capital", Region, ignore.case = TRUE) ~ "NCR",
+            grepl("CAR$|Cordillera", Region, ignore.case = TRUE) ~ "CAR",
+            grepl("BARMM", Region, ignore.case = TRUE) ~ "BARMM",
+            TRUE ~ Region # Fallback to original
+          )
+        )
+      
+      message(paste("Successfully loaded and normalized", nrow(teacher_shortage_df), "shortage records."))
+      print("--- Unique Regions in DB (Normalized) ---")
+      print(unique(teacher_shortage_df$Region))
+      print(head(teacher_shortage_df, 3))
+      
+    } else {
+      warning("Could not find required columns (region, division, teacher_shortage2026) in 'teachershortage' table.")
+      print(paste("Available columns:", paste(db_cols, collapse=", ")))
+    }
+    
+  } else {
+    warning("Table 'teachershortage' not found in database 'STRIDE'.")
+  }
+  
+  dbDisconnect(con)
+  message("Database connection closed.")
+  
+}, error = function(e) {
+  message(paste("Database Connection/Data Load Error:", e$message))
+})
+
 # --- ADVANCED ANALYTICS SETUP ---
 print("--- ADVANCED ANALYTICS: Starting column analysis... ---")
 analytics_column_map <- tibble(

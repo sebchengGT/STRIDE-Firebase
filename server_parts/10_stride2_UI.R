@@ -498,7 +498,7 @@ output$STRIDE2 <- renderUI({
               options = pickerOptions(`actions-box` = TRUE, liveSearch = TRUE, dropupAuto = FALSE, dropup = FALSE, header = "Select HR Metrics", title = "No HR Metrics Selected"),
               choices = list(
                 `School Information` = c("Number of Schools" = "Total.Schools", "School Size Typology" = "School.Size.Typology", "Curricular Offering" = "Modified.COC", "Shifting" = "Shifting"),
-                `Teaching Data` = c("Total Teachers" = "TotalTeachers"), # "Teacher Excess" = "Total.Excess", "Teacher Shortage" = "Total.Shortage"),
+                `Teaching Data` = c("Total Teachers" = "TotalTeachers", "Teacher Shortage" = "Total.Shortage"), # "Teacher Excess" = "Total.Excess",
                 `Non-teaching Data` = c("COS" = "Outlier.Status", "AOII Clustering Status" = "Clustering.Status"),
                 `Enrolment Data` = c("Total Enrolment" = "TotalEnrolment", "Kinder" = "Kinder", "Grade 1" = "G1", "Grade 2" = "G2", "Grade 3" = "G3", "Grade 4" = "G4", "Grade 5" = "G5", "Grade 6" = "G6", "Grade 7" = "G7", "Grade 8" = "G8", "Grade 9" = "G9", "Grade 10" = "G10", "Grade 11" = "G11", "Grade 12" = "G12"),
                 `Specialization Data` = c("English" = "English", "Mathematics" = "Mathematics", "Science" = "Science", "Biological Sciences" = "Biological.Sciences", "Physical Sciences" = "Physical.Sciences")
