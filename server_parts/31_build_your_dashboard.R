@@ -45,9 +45,7 @@ hr_metric_choices <- list(
                            "School Size Typology" = "School.Size.Typology", 
                            "Curricular Offering" = "Modified.COC",
                            "Shifting" = "Shifting"),
-  `Teaching Data` = c("Number of Teachers" = "TotalTeachers", 
-                      "Teacher Excess" = "Total.Excess", 
-                      "Teacher Shortage" = "Total.Shortage"),
+  `Teaching Data` = c("Number of Teachers" = "TotalTeachers"),
   `Non-teaching Data` = c("COS" = "Outlier.Status", 
                           "AOII Clustering Status" = "Clustering.Status"),
   `Enrolment Data` = c("Total Enrolment" = "TotalEnrolment", "Kinder" = "Kinder", 
@@ -202,7 +200,7 @@ all_selected_metrics <- reactive({
 # --- *** START: PRESET & PICKER SYNC LOGIC *** ---
 
 # --- Define Metric Groups ---
-teacher_metrics <- c("TotalTeachers", "Total.Shortage", "Total.Excess")
+teacher_metrics <- c("TotalTeachers")
 school_metrics <- c("Total.Schools","School.Size.Typology", "Modified.COC","Shifting") 
 classroom_metrics <- c("Instructional.Rooms.2023.2024", "Classroom.Requirement","Classroom.Shortage","Buildable_Space")
 enrolment_metrics <- c("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8", "G9", "G10", "G11", "G12")
