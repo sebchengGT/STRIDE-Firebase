@@ -174,7 +174,7 @@ observe({
     txt <- trimws(input$text_advanced) # Read from advanced input
     can_run <- (txt != "" || adv_pickers_filled)
     if (!can_run) {
-      warning_msg <- "⚠ Please enter a school name or use advanced search filters."
+      warning_msg <- "⚠ Please enter a school name or ID."
     }
     
   } else {
@@ -182,7 +182,7 @@ observe({
     txt <- trimws(input$text_simple) # Read from simple input
     can_run <- (txt != "")
     if (!can_run) {
-      warning_msg <- "⚠ Please enter a school name."
+      warning_msg <- "⚠ Please enter a school name or ID."
     }
   }
   
@@ -237,7 +237,8 @@ observeEvent(input$TextRun, {
   
   if (Text_pattern != "") {
     filtered_data <- filtered_data %>%
-      filter(grepl(Text_pattern, as.character(School.Name), ignore.case = TRUE))
+      filter(grepl(Text_pattern, as.character(School.Name), ignore.case = TRUE) | 
+             grepl(Text_pattern, as.character(SchoolID), ignore.case = TRUE))
   }
   
   if (is_advanced) {

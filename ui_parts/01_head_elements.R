@@ -38,6 +38,20 @@ ui_head <- tagList(
           console.error('JS: Firebase Init Error', e);
         }
 
+        // --- GLOBAL LOADING LISTENER (Debounced) ---
+        var busyTimer;
+        $(document).on('shiny:busy', function(event) {
+            // Only show loader if busy for more than 800ms to avoid flashing
+            busyTimer = setTimeout(function() {
+               $('#loading-overlay').fadeIn(200);
+            }, 800);
+        });
+
+        $(document).on('shiny:idle', function(event) {
+            clearTimeout(busyTimer); // Cancel if idle before timeout
+            $('#loading-overlay').fadeOut(200);
+        });
+
         // --- SIGN IN HANDLERS ---
         Shiny.addCustomMessageHandler('firebase-sign_in', function(msg) {
           if (typeof firebase === 'undefined') { alert('Error: Firebase SDK not loaded.'); return; }

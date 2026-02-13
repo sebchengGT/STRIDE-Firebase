@@ -618,10 +618,10 @@ output$STRIDE2 <- renderUI({
                             actionButton("add_adv_filter_btn", "Add Variable Filter", 
                                          icon = icon("plus"), class = "btn-default w-100 mb-3"),
                             hr(),
-                            # # --- INSERT BUTTON 2 HERE ---
+                            # # --- INSERT BUTTON 2 HERE --- (UNCOMMENTED BY DEV)
                             # tags$div(
                             #   style = "margin-bottom: 15px;",
-                            #   downloadButton("generate_report_adv", "Generate Report", 
+                            #   downloadButton("download_adv_data", "Download CSV", 
                             #                  class = "btn-danger", 
                             #                  style = "width: 100%; background-color: #CE1126; border: none; font-weight: bold;")
                             # ),
@@ -632,7 +632,13 @@ output$STRIDE2 <- renderUI({
           fluidRow(
             column(12,
                    card(
-                     card_header("Drilldown Plot"),
+                     card_header(
+                       div(
+                         class = "d-flex justify-content-between align-items-center",
+                         "Drilldown Plot",
+                         downloadButton("download_adv_data", "Download CSV", class = "btn-sm btn-danger", style = "font-weight: bold;")
+                       )
+                     ),
                      card_body(
                        uiOutput("adv_drill_controls_ui"),
                        plotOutput("advanced_drilldown_plot", click = "adv_plot_click")
@@ -738,12 +744,12 @@ output$STRIDE2 <- renderUI({
           conditionalPanel(
             condition = "input.search_mode == false",
             h5("Simple Search"),
-            textInput("text_simple", "School Name:", placeholder = "Enter school name (or part of it)")
+            textInput("text_simple", "School Name or ID:", placeholder = "Enter school name or ID")
           ),
           conditionalPanel(
             condition = "input.search_mode == true",
             h5("Advanced Search"),
-            textInput("text_advanced", "School Name (Optional):", placeholder = "Filter by name..."),
+            textInput("text_advanced", "School Name or ID (Optional):", placeholder = "Filter by name or ID..."),
             hr(),
             
             h5("Advanced Filters"),
@@ -833,73 +839,117 @@ output$STRIDE2 <- renderUI({
           width = 375,
           title = "Resource Mapping Filters",
           
-          # --- 1. SHARED LOCATION FILTERS ---
-          card(
-            height = "auto",
-            card_header(tags$b("Data Filters")),
-            pickerInput(
-              inputId = "resource_map_region", 
-              label = "Region:", 
-              choices = c("Region I", "Region II", "Region III", "Region IV-A", "MIMAROPA", 
-                          "Region V", "Region VI", "NIR", "Region VII", "Region VIII", 
-                          "Region IX", "Region X", "Region XI", "Region XII", "CARAGA", 
-                          "CAR", "NCR"), 
-              selected = "Region I", 
-              options = list(`actions-box` = FALSE, `none-selected-text` = "Select a region")
-            ),
-            pickerInput(
-              inputId = "Resource_SDO", 
-              label = "Select a Division:", 
-              choices = NULL, 
-              selected = NULL, 
-              options = list(`actions-box` = FALSE, `none-selected-text` = "Select a division")
-            ),
-            pickerInput(
-              inputId = "Resource_LegDist", 
-              label = "Select Legislative District(s):", 
-              choices = NULL, 
-              selected = NULL, 
-              multiple = TRUE, 
-              options = list(`actions-box` = TRUE, `none-selected-text` = "Select districts")
-            ),
-            
-            # --- CONDITIONAL INPUTS (DEPENDING ON ACTIVE TAB) ---
-            
-            # Show Level only for Teaching Deployment Tab
-            conditionalPanel(
-              condition = "input.resource_main_tab == 'Teaching Deployment'",
+          # --- 1. SHARED LOCATION FILTERS (STANDARD VIEW) ---
+          conditionalPanel(
+            condition = "input.resource_view_mode == 'Standard View'",
+            card(
+              height = "auto",
+              card_header(tags$b("Data Filters")),
               pickerInput(
-                inputId = "resource_map_level",
-                label = "Select Level:",
-                choices = c("ES", "JHS", "SHS"), # Ensure these match your df$Level values
-                selected = "ES",
-                options = list(`actions-box` = FALSE)
-              )
-            ),
-            
-            # Show Facility Type only for Facilities Tab
-            # (Restored this input as it is required by data_EFD in server)
-            conditionalPanel(
-              condition = "input.resource_main_tab == 'Facilities'",
+                inputId = "resource_map_region", 
+                label = "Region:", 
+                choices = c("Region I", "Region II", "Region III", "Region IV-A", "MIMAROPA", 
+                            "Region V", "Region VI", "NIR", "Region VII", "Region VIII", 
+                            "Region IX", "Region X", "Region XI", "Region XII", "CARAGA", 
+                            "CAR", "NCR"), 
+                selected = "Region I", 
+                options = list(`actions-box` = FALSE, `none-selected-text` = "Select a region")
+              ),
               pickerInput(
-                inputId = "EFD_Type",
-                label = "Select Facility Category:",
-                choices = c("New Construction","Electrification","Health","QRF","LMS","ALS-CLC","Gabaldon", "Repairs"), # Add specific choices as needed
-                multiple = TRUE,
-                selected = c("New Construction","Electrification"),
-                options = list(`actions-box` = TRUE, `live-search` = TRUE)
-              )
-            ),
-            
-            hr(),
-            # Action Button
-            input_task_button("Mapping_Run", strong("Generate Map & Data"), class = "btn-warning w-100")
+                inputId = "Resource_SDO", 
+                label = "Select a Division:", 
+                choices = NULL, 
+                selected = NULL, 
+                options = list(`actions-box` = FALSE, `none-selected-text` = "Select a division")
+              ),
+              pickerInput(
+                inputId = "Resource_LegDist", 
+                label = "Select Legislative District(s):", 
+                choices = NULL, 
+                selected = NULL, 
+                multiple = TRUE, 
+                options = list(`actions-box` = TRUE, `none-selected-text` = "Select districts")
+              ),
+              
+              # --- CONDITIONAL INPUTS (DEPENDING ON ACTIVE TAB) ---
+              
+              # Show Level only for Teaching Deployment Tab
+              conditionalPanel(
+                condition = "input.resource_main_tab == 'Teaching Deployment'",
+                pickerInput(
+                  inputId = "resource_map_level",
+                  label = "Select Level:",
+                  choices = c("ES", "JHS", "SHS"), # Ensure these match your df$Level values
+                  selected = "ES",
+                  options = list(`actions-box` = FALSE)
+                )
+              ),
+              
+              # Show Facility Type only for Facilities Tab
+              conditionalPanel(
+                condition = "input.resource_main_tab == 'Facilities'",
+                pickerInput(
+                  inputId = "EFD_Type",
+                  label = "Select Facility Category:",
+                  choices = c("New Construction","Electrification","Health","QRF","LMS","ALS-CLC","Gabaldon", "Repairs"), 
+                  multiple = TRUE,
+                  selected = c("New Construction","Electrification"),
+                  options = list(`actions-box` = TRUE, `live-search` = TRUE)
+                )
+              ),
+              
+              hr(),
+              # Action Button
+              input_task_button("Mapping_Run", strong("Generate Map & Data"), class = "btn-warning w-100")
+            )
+          ),
+          
+          # --- 2. IMMERSIVE VIEW FILTERS ---
+          conditionalPanel(
+            condition = "input.resource_view_mode == 'Immersive View'",
+            card(
+              height = "auto",
+              card_header(tags$b("Immersive Experience")),
+              selectInput(
+                inputId = "Immersive_Layer", 
+                label = "Select Layer:", 
+                choices = c("All Schools", "Last Mile School", "Teacher Shortage", "Classroom Shortage"),
+                selected = "All Schools"
+              ),
+              selectInput(
+                inputId = "Immersive_Region", 
+                label = "Select Region:", 
+                choices = c("All Regions", "Region I", "Region II", "Region III", "Region IV-A", "MIMAROPA", 
+                            "Region V", "Region VI", "NIR", "Region VII", "Region VIII", 
+                            "Region IX", "Region X", "Region XI", "Region XII", "CARAGA", 
+                            "CAR", "NCR"),
+                selected = "All Regions"
+              ),
+              selectizeInput(
+                inputId = "Immersive_Search", 
+                label = "Search School:", 
+                choices = NULL,
+                options = list(placeholder = "Type school name...")
+              ),
+              hr(),
+              tags$p(class = "text-muted", "Interact with the map to explore data in real-time.")
+            )
           )
         ), 
         
-        # --- 2. MAIN CONTENT TABS ---
+        # --- 3. MAIN CONTENT TABS (NESTED) ---
         bslib::navset_card_tab(
-          id = "resource_main_tab", # ID used for sidebar conditional logic
+          id = "resource_view_mode", # New Top Level ID
+          
+          # ----- VIEW 1: STANDARD VIEW -----
+          nav_panel(
+            title = "Standard View",
+            value = "Standard View",
+            icon = bs_icon("grid-1x2"),
+            
+            # --- NESTED ORIGINAL TABS ---
+            bslib::navset_card_tab(
+              id = "resource_main_tab", # ID used for sidebar conditional logic
           
           # ----- TAB 1: TEACHING DEPLOYMENT -----
           nav_panel(
@@ -1469,6 +1519,20 @@ output$STRIDE2 <- renderUI({
                 ),
                 col_widths = c(6, 6)
               )
+            )
+          )
+            )
+          ),
+          
+          # ----- VIEW 2: IMMERSIVE VIEW (NEW) -----
+          nav_panel(
+            title = "Immersive View",
+            value = "Immersive View",
+            icon = bs_icon("globe-asia-australia"),
+            
+            tagList(
+              # Full-screen map
+              leafletOutput("ImmersiveMap", height = "calc(100vh - 180px)")
             )
           )
         )

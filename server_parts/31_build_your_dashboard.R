@@ -1002,6 +1002,12 @@ summarized_data_long <- reactive({
     summaries_list[["school_count"]] <- school_count_summary
   }
   
+  # --- FIX: Convert Buildable_Space to numeric (Yes=1, No=0) so it can be summed ---
+  if ("Buildable_Space" %in% metrics_to_process && "Buildable_Space" %in% names(data_in)) {
+    data_in <- data_in %>%
+      mutate(Buildable_Space = ifelse(grepl("^yes$", as.character(Buildable_Space), ignore.case = TRUE), 1, 0))
+  }
+  
   # --- NEW: Aggregation for Division-Level Teacher Shortage ---
   if ("Total.Shortage" %in% metrics_to_process && exists("teacher_shortage_df")) {
     
